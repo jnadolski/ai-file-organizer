@@ -12,7 +12,9 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 
 ## Screenshot
 
-![AI File Organizer Screenshot](AI%20File%20Organizer%20(iOS%20Icon).png)
+<img src="AI%20File%20Organizer%20(iOS%20Icon).png" width="500">
+<br>
+<img src="AppUI.png" width="500">
 
 ## Installation and Usage
 
