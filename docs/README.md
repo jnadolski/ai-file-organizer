@@ -12,13 +12,17 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 
 ## Screenshots
 
-### Before (Custom Styling)
-
-<img src="assets/Screenshot%202025-09-30%20at%207.55.06%20AM.png" width="500">
-
-### After (Native macOS Look)
+### Application UI
 
 <img src="assets/AppUI.png" width="500">
+
+### Before (Original UI)
+
+<img src="assets/example_before.png" width="500">
+
+### After (Organized Files)
+
+<img src="assets/example_after.png" width="500">
 
 ## Installation and Usage
 
