@@ -35,9 +35,6 @@ jobs:
       - name: List dist directory
         run: ls -l dist
 
-      - name: List dist directory
-        run: ls -l dist
-
       - name: Get app name
         id: get_app_name
         run: echo "app_name=$(ls dist/*.app | cut -d'/' -f2)" >> $GITHUB_OUTPUT
@@ -76,9 +73,6 @@ jobs:
       - name: Build the application
         run: python -m PyInstaller build_configs/build_windows.spec
 
-      - name: List dist directory
-        run: ls -l dist
-
       - name: Compress the application
         run: |
           $appName = "Gemini-Powered AI File Organizer"
@@ -102,17 +96,11 @@ jobs:
           name: Gemini-Powered-AI-File-Organizer-macOS
           path: dist/macos
 
-      - name: List downloaded macOS artifact
-        run: ls -l dist/macos
-
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: Gemini-Powered-AI-File-Organizer-Windows
           path: dist/windows
-
-      - name: List downloaded Windows artifact
-        run: ls -l dist/windows
 
       - name: Create Release
         id: create_release
