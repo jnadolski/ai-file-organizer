@@ -2,8 +2,8 @@
 
 block_cipher = None
 
-a = Analysis(['gui.py'],
-             pathex=['/Users/jennifernadolski/ai-file-organizer'],
+a = Analysis(['src/gui.py'],
+             pathex=['/Users/jennifernadolski/ai-file-organizer/src'],
              binaries=[],
              datas=[],
              hiddenimports=[],
@@ -30,4 +30,4 @@ ex = EXE(pyz,
           upx_exclude=[],
           runtime_tmpdir=None,
           console=False,
-          icon='icon.ico')
+          icon='assets/icon.ico')

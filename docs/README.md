@@ -10,11 +10,15 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 *   **Debug Mode:** A debug mode to test the application without making actual API calls.
 *   **Packaged Application:** Comes as a standalone `.app` bundle for easy installation and use on macOS.
 
-## Screenshot
+## Screenshots
 
-<img src="AI%20File%20Organizer%20(iOS%20Icon).png" width="128">
-<br>
-<img src="AppUI.png" width="500">
+### Before (Custom Styling)
+
+<img src="assets/Screenshot%202025-09-30%20at%207.55.06%20AM.png" width="500">
+
+### After (Native macOS Look)
+
+<img src="assets/AppUI.png" width="500">
 
 ## Installation and Usage
 
@@ -46,11 +50,11 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
     ```
 3.  **Run the application:**
     ```bash
-    python gui.py
+    python src/gui.py
     ```
 4.  **Run in debug mode:**
     ```bash
-    python gui.py --debug_skip_api
+    python src/gui.py --debug_skip_api
     ```
 
 ## Packaging
@@ -58,7 +62,7 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 This project uses `py2app` to create the macOS application bundle. To build the application, run the following command:
 
 ```bash
-python setup.py py2app
+python build_configs/setup.py py2app
 ```
 
 The application will be created in the `dist` directory.

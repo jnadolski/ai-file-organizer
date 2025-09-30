@@ -7,9 +7,9 @@ Usage:
 
 from setuptools import setup
 
-APP = ['gui.py']
+APP = ['src/gui.py']
 DATA_FILES = []
-OPTIONS = {'iconfile': 'icon.icns'}
+OPTIONS = {'iconfile': 'assets/icon.icns'}
 
 setup(
     name="Gemini-Powered AI File Organizer",
