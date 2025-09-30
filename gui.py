@@ -1,8 +1,8 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QProgressBar, QLabel, QFileDialog
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QProgressBar, QLabel, QTextEdit, QFileDialog
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 
-from organizer import get_files_to_organize, get_ai_categories, move_file
+from organizer import get_items_to_organize, get_item_categories, move_item
 
 class QtLogger(QObject):
     message = pyqtSignal(str)
@@ -17,42 +17,101 @@ class Worker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(int)
     status = pyqtSignal(str)
+    log_message = pyqtSignal(str)
     error = pyqtSignal(str)
 
     def __init__(self, directory):
         super().__init__()
         self.directory = directory
         self.logger = QtLogger()
-        self.logger.message.connect(self.status)
+        self.logger.message.connect(self.log_message)
+        self.is_cancelled = False
+
+    def cancel(self):
+        self.is_cancelled = True
 
     def run(self):
         try:
             self.status.emit("Scanning directory...")
-            files_to_categorize, file_path_map = get_files_to_organize(self.directory, self.logger)
+            files_to_categorize, folders_to_categorize, item_path_map = get_items_to_organize(self.directory, self.logger)
             
-            if not files_to_categorize:
-                self.status.emit("No files to organize.")
+            if self.is_cancelled:
+                self.status.emit("Cancelled.")
                 self.finished.emit()
                 return
 
-            self.status.emit(f"Found {len(files_to_categorize)} files to process.")
-            
-            self.status.emit("Categorizing files with AI...")
-            categorized_files = get_ai_categories(files_to_categorize, self.logger)
-
-            if not categorized_files:
-                self.status.emit("Could not categorize files.")
+            total_items_to_process = len(files_to_categorize) + len(folders_to_categorize)
+            if total_items_to_process == 0:
+                self.status.emit("No items to organize.")
                 self.finished.emit()
                 return
 
-            self.status.emit("Moving files...")
-            total_files = len(categorized_files)
-            for i, categorized_file in enumerate(categorized_files):
-                move_file(self.directory, categorized_file, file_path_map, self.logger)
-                progress_value = int(((i + 1) / total_files) * 100)
-                self.progress.emit(progress_value)
+            self.status.emit(f"Found {len(files_to_categorize)} files and {len(folders_to_categorize)} folders to process.")
+            
+            processed_items_count = 0
 
-            self.status.emit("Organization complete.")
+            if files_to_categorize:
+                self.status.emit("Categorizing files with AI...")
+                
+                def file_categorization_progress(processed, total):
+                    if self.is_cancelled:
+                        raise Exception("Organization cancelled.")
+                    current_progress = int((processed_items_count + (processed / total)) / total_items_to_process * 100)
+                    self.progress.emit(current_progress)
+
+                categorized_files = get_item_categories(files_to_categorize, self.logger, file_categorization_progress, batch_size=64)
+
+                if self.is_cancelled:
+                    self.status.emit("Cancelled.")
+                    self.finished.emit()
+                    return
+
+                if categorized_files:
+                    self.status.emit("Moving files...")
+                    for i, categorized_file in enumerate(categorized_files):
+                        if self.is_cancelled:
+                            break
+                        move_item(self.directory, categorized_file, item_path_map, self.logger)
+                        processed_items_count += 1
+                        current_progress = int((processed_items_count / total_items_to_process) * 100)
+                        self.progress.emit(current_progress)
+
+            if self.is_cancelled:
+                self.status.emit("Cancelled.")
+                self.finished.emit()
+                return
+
+            if folders_to_categorize:
+                self.status.emit("Categorizing folders with AI...")
+
+                def folder_categorization_progress(processed, total):
+                    if self.is_cancelled:
+                        raise Exception("Organization cancelled.")
+                    current_progress = int((processed_items_count + (processed / total)) / total_items_to_process * 100)
+                    self.progress.emit(current_progress)
+
+                categorized_folders = get_item_categories(folders_to_categorize, self.logger, folder_categorization_progress, batch_size=64)
+
+                if self.is_cancelled:
+                    self.status.emit("Cancelled.")
+                    self.finished.emit()
+                    return
+
+                if categorized_folders:
+                    self.status.emit("Moving folders...")
+                    for i, categorized_folder in enumerate(categorized_folders):
+                        if self.is_cancelled:
+                            break
+                        move_item(self.directory, categorized_folder, item_path_map, self.logger)
+                        processed_items_count += 1
+                        current_progress = int((processed_items_count / total_items_to_process) * 100)
+                        self.progress.emit(current_progress)
+
+            if self.is_cancelled:
+                self.status.emit("Organization cancelled.")
+            else:
+                self.status.emit("Organization complete.")
+                self.progress.emit(100) # Ensure 100% is emitted at the end
         except Exception as e:
             self.error.emit(str(e))
         finally:
@@ -62,7 +121,7 @@ class OrganizerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI File Organizer")
-        self.setFixedSize(600, 150)
+        self.setGeometry(100, 100, 600, 400)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -83,10 +142,17 @@ class OrganizerWindow(QMainWindow):
 
         main_layout.addLayout(dir_layout)
 
-        # Start button
+        # Buttons
+        button_layout = QHBoxLayout()
         self.start_button = QPushButton("Start Organizing")
         self.start_button.clicked.connect(self.start_organization)
-        main_layout.addWidget(self.start_button)
+        button_layout.addWidget(self.start_button)
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.cancel_organization)
+        self.cancel_button.setEnabled(False)
+        button_layout.addWidget(self.cancel_button)
+        main_layout.addLayout(button_layout)
 
         # Progress bar
         self.progress_bar = QProgressBar()
@@ -95,6 +161,11 @@ class OrganizerWindow(QMainWindow):
         # Status label
         self.status_label = QLabel("Ready")
         main_layout.addWidget(self.status_label)
+
+        # Log console
+        self.log_console = QTextEdit()
+        self.log_console.setReadOnly(True)
+        main_layout.addWidget(self.log_console)
 
     def browse_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Directory")
@@ -108,7 +179,9 @@ class OrganizerWindow(QMainWindow):
             return
         
         self.start_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
         self.progress_bar.setValue(0)
+        self.log_console.clear()
         self.status_label.setText(f"Starting organization for: {directory}")
 
         self.thread = QThread()
@@ -121,10 +194,16 @@ class OrganizerWindow(QMainWindow):
         self.thread.finished.connect(self.thread.deleteLater)
         self.worker.progress.connect(self.update_progress)
         self.worker.status.connect(self.update_status)
+        self.worker.log_message.connect(self.update_log)
         self.worker.error.connect(self.report_error)
         self.thread.finished.connect(lambda: self.start_button.setEnabled(True))
+        self.thread.finished.connect(lambda: self.cancel_button.setEnabled(False))
 
         self.thread.start()
+
+    def cancel_organization(self):
+        if self.worker:
+            self.worker.cancel()
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
@@ -132,8 +211,12 @@ class OrganizerWindow(QMainWindow):
     def update_status(self, message):
         self.status_label.setText(message)
 
+    def update_log(self, message):
+        self.log_console.append(message)
+
     def report_error(self, error):
-        self.status_label.setText(f"Error: {error}")
+        self.log_console.append(f"Error: {error}")
+        self.status_label.setText("Error occurred.")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

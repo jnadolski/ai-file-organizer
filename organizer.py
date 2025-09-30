@@ -50,10 +50,10 @@ def sanitize_foldername(path_str: str) -> str:
         sanitized_parts.append(part if part else "Misc")
     return '/'.join(sanitized_parts)
 
-def get_ai_categories_batch(file_list: list[dict], logger=None) -> list[dict]:
+def get_ai_categories_batch(item_list: list[dict], logger=None) -> list[dict]:
     """
-    Sends a batch of file information to the Gemini API and requests a structured JSON list 
-    of categories for all files.
+    Sends a batch of item information to the Gemini API and requests a structured JSON list 
+    of categories for all items.
     """
     log = logger.info if logger else print
     log_error = logger.error if logger else lambda msg: print(msg, file=sys.stderr)
@@ -67,11 +67,11 @@ def get_ai_categories_batch(file_list: list[dict], logger=None) -> list[dict]:
             "items": {
                 "type": "object",
                 "properties": {
-                    "id": {"type": "integer", "description": "The unique identifier for the file."},
-                    "filename": {"type": "string", "description": "The exact original filename."},
-                    "category": {"type": "string", "description": "A folder path for the file, up to two levels deep (e.g., 'Sims/Mods', 'Documents')."}
+                    "id": {"type": "integer", "description": "The unique identifier for the item."},
+                    "name": {"type": "string", "description": "The exact original filename or folder name."},
+                    "category": {"type": "string", "description": "A folder path for the item, up to two levels deep (e.g., 'Sims/Mods', 'Documents')."}
                 },
-                "required": ["id", "filename", "category"]
+                "required": ["id", "name", "category"]
             }
         }
         
@@ -81,8 +81,9 @@ def get_ai_categories_batch(file_list: list[dict], logger=None) -> list[dict]:
         )
         
         prompt = (
-            "You are an expert file organizer. Analyze the following list of file names and extensions. "
-            "For each file, determine a concise, descriptive folder path. "
+            "You are an expert file organizer. Analyze the following list of files and folders. "
+            "For each item, determine a concise, descriptive folder path. "
+            "Categorize files based on their name and extension, and folders based on their name. "
             "The path can be one or two levels deep, using a forward slash (/) as a separator (e.g., 'Sims/Mods', 'Documents/Taxes'). "
             "Use the following standardized categories where appropriate, but you can also create new, fitting categories if needed:\n"
             "- Sims/Custom_Content\n"
@@ -99,7 +100,7 @@ def get_ai_categories_batch(file_list: list[dict], logger=None) -> list[dict]:
             "- Contacts\n"
             "- Misc\n"
             "Return ONLY a valid JSON list matching the provided schema. "
-            "Files to categorize:\n" + json.dumps(file_list)
+            "Items to categorize:\n" + json.dumps(item_list)
         )
 
         log("Sending request to Gemini API...")
@@ -117,55 +118,63 @@ def get_ai_categories_batch(file_list: list[dict], logger=None) -> list[dict]:
         log_error(f"FATAL Error during batch AI categorization: {e}")
         return []
 
-def get_files_to_organize(source_dir: str, logger=None) -> tuple[list[dict], dict[int, Path]]:
-    """Scans the source directory recursively and returns a list of files to be processed."""
+def get_items_to_organize(source_dir: str, logger=None) -> tuple[list[dict], list[dict], dict[int, Path]]:
+    """Scans the source directory and returns separate lists of files and folders to be processed."""
     log = logger.info if logger else print
     
     source_path = Path(source_dir)
     if not source_path.is_dir():
         raise ValueError(f"Error: {source_path} is not a valid directory.")
 
-    log(f"Scanning {source_path} recursively and preparing batch request...")
+    log(f"Scanning {source_path} and preparing batch request...")
     
     files_to_categorize = []
-    file_path_map = {} 
-    file_id = 0
-    for file_path in source_path.rglob('*'):
-        if not file_path.is_file() or file_path.name.startswith('.'):
+    folders_to_categorize = []
+    item_path_map = {} 
+    item_id = 0
+    for item_path in source_path.rglob('*'):
+        if item_path.name.startswith('.'):
             continue
         
-        file_info = {
-            "id": file_id,
-            "filename": file_path.name,
-            "extension": file_path.suffix.lower(),
+        item_info = {
+            "id": item_id,
+            "name": item_path.name,
         }
-        files_to_categorize.append(file_info)
-        file_path_map[file_id] = file_path
-        file_id += 1
+        if item_path.is_file():
+            item_info["type"] = "file"
+            item_info["extension"] = item_path.suffix.lower()
+            files_to_categorize.append(item_info)
+        elif item_path.is_dir():
+            item_info["type"] = "folder"
+            folders_to_categorize.append(item_info)
 
-    log(f"Found {len(files_to_categorize)} files to process.")
-    return files_to_categorize, file_path_map
+        item_path_map[item_id] = item_path
+        item_id += 1
 
-def get_ai_categories(files_to_categorize: list[dict], logger=None) -> list[dict]:
-    """Takes a list of files and gets the categories from the AI."""
+    log(f"Found {len(files_to_categorize)} files and {len(folders_to_categorize)} folders to process.")
+    return files_to_categorize, folders_to_categorize, item_path_map
+
+def get_item_categories(items_to_categorize: list[dict], logger=None, progress_callback=None, batch_size=64) -> list[dict]:
+    """Takes a list of items and gets the categories from the AI."""
     log = logger.info if logger else print
     log_error = logger.error if logger else lambda msg: print(msg, file=sys.stderr)
 
-    if not files_to_categorize:
-        log("No files found to organize.")
+    if not items_to_categorize:
+        log("No items found to organize.")
         return []
 
-    log(f"Sending {len(files_to_categorize)} files to Gemini for categorization...")
+    log(f"Sending {len(items_to_categorize)} items to Gemini for categorization...")
     
-    batch_size = 20
     all_results = []
 
-    for i in range(0, len(files_to_categorize), batch_size):
-        batch = files_to_categorize[i:i + batch_size]
-        log(f"Processing batch {i//batch_size + 1}/{(len(files_to_categorize) + batch_size - 1)//batch_size}...")
+    for i in range(0, len(items_to_categorize), batch_size):
+        batch = items_to_categorize[i:i + batch_size]
+        log(f"Processing batch {i//batch_size + 1}/{(len(items_to_categorize) + batch_size - 1)//batch_size}...")
         results = get_ai_categories_batch(batch, logger)
         if results:
             all_results.extend(results)
+        if progress_callback:
+            progress_callback(i + len(batch), len(items_to_categorize))
     
     if not all_results:
         log_error("Batch categorization failed or returned empty results.")
@@ -173,56 +182,72 @@ def get_ai_categories(files_to_categorize: list[dict], logger=None) -> list[dict
         
     return all_results
 
-def move_file(source_dir: str, categorized_file: dict, file_path_map: dict[int, Path], logger=None):
-    """Moves a single file to its new categorized directory."""
+def move_item(source_dir: str, categorized_item: dict, item_path_map: dict[int, Path], logger=None):
+    """Moves a single item to its new categorized directory."""
     log = logger.info if logger else print
     log_error = logger.error if logger else lambda msg: print(msg, file=sys.stderr)
     
     source_path = Path(source_dir)
     try:
-        file_id = categorized_file["id"]
-        category = sanitize_foldername(categorized_file["category"])
-        file_path = file_path_map.get(file_id)
+        item_id = categorized_item["id"]
+        category = sanitize_foldername(categorized_item["category"])
+        item_path = item_path_map.get(item_id)
         
-        if not file_path:
-            log_error(f"Warning: Could not find original path for file with id '{file_id}'. Skipping.")
+        if not item_path:
+            log_error(f"Warning: Could not find original path for item with id '{item_id}'. Skipping.")
             return
 
-        log(f"File: '{file_path.name}' -> Category: '{category}'")
+        log(f"Item: '{item_path.name}' -> Category: '{category}'")
 
         dest_dir = source_path / category
         dest_dir.mkdir(parents=True, exist_ok=True)
         
-        new_file_path = dest_dir / file_path.name
-        shutil.move(str(file_path), str(new_file_path))
+        new_item_path = dest_dir / item_path.name
+
+        # Check if trying to move a directory into itself
+        if item_path.is_dir() and new_item_path.is_relative_to(item_path):
+            log_error(f"Error: Cannot move directory '{item_path}' into itself '{new_item_path}'. Skipping.")
+            return
+
+        shutil.move(str(item_path), str(new_item_path))
         
         log(json.dumps({
-            "source": str(file_path),
-            "destination": str(new_file_path),
+            "source": str(item_path),
+            "destination": str(new_item_path),
             "category": category,
             "status": "success"
         }))
 
     except KeyError:
-        log_error(f"Warning: Missing key in result data: {categorized_file}. Skipping.")
+        log_error(f"Warning: Missing key in result data: {categorized_item}. Skipping.")
     except Exception as e:
-        log_error(f"Error processing result for file with id {categorized_file.get('id')}: {e}")
+        log_error(f"Error processing result for item with id {categorized_item.get('id')}: {e}")
 
 def main():
     """Main function to orchestrate the file organization."""
     parser = argparse.ArgumentParser(description="AI-Powered File Organizer")
     parser.add_argument("source_dir", type=str, help="The directory to organize.")
+    parser.add_argument("--batch_size", type=int, default=64, help="The batch size for AI categorization.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger = logging.getLogger()
 
     try:
-        files_to_categorize, file_path_map = get_files_to_organize(args.source_dir, logger)
-        categorized_files = get_ai_categories(files_to_categorize, logger)
-        if categorized_files:
-            for categorized_file in categorized_files:
-                move_file(args.source_dir, categorized_file, file_path_map, logger)
+        files_to_categorize, folders_to_categorize, item_path_map = get_items_to_organize(args.source_dir, logger)
+        
+        if files_to_categorize:
+            categorized_files = get_item_categories(files_to_categorize, logger, batch_size=args.batch_size)
+            if categorized_files:
+                for categorized_file in categorized_files:
+                    move_item(args.source_dir, categorized_file, item_path_map, logger)
+
+        if folders_to_categorize:
+            categorized_folders = get_item_categories(folders_to_categorize, logger, batch_size=args.batch_size)
+            if categorized_folders:
+                for categorized_folder in categorized_folders:
+                    move_item(args.source_dir, categorized_folder, item_path_map, logger)
+
     except ValueError as e:
         logger.error(e)
 
