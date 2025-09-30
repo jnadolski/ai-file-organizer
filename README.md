@@ -20,13 +20,13 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 
 ### For macOS Users
 
-1.  Download the `Gemini-Powered AI File Organizer.app.zip` from the [latest release](https://github.com/jnadolski/ai-file-organizer/releases/tag/v1.1.0).
+1.  Download the `Gemini-Powered AI File Organizer.app.zip` from the [latest release](https://github.com/jnadolski/ai-file-organizer/releases/latest).
 2.  Drag the application to your `Applications` folder.
 3.  Double-click the application to run it.
 
 ### For Windows Users
 
-1.  Download the `Gemini-Powered AI File Organizer-Windows.zip` from the [latest release](https://github.com/jnadolski/ai-file-organizer/releases/tag/v1.1.0).
+1.  Download the `Gemini-Powered AI File Organizer-Windows.zip` from the [latest release](https://github.com/jnadolski/ai-file-organizer/releases/latest).
 2.  Extract the contents of the `.zip` file to a folder of your choice.
 3.  Navigate to the extracted folder and double-click `Gemini-Powered AI File Organizer.exe` to run the application.
 4.  **Important Note for Windows Users:** Your antivirus software (e.g., Windows Defender) might flag the executable as a false positive because it is not digitally signed. If this happens, you may need to temporarily disable real-time protection to download/extract the file, and then add an exclusion for the application folder in your antivirus settings.
