@@ -25,6 +25,12 @@ jobs:
       - name: Build the application
         run: python setup.py py2app
 
+      - name: Find .app bundle
+        run: find . -name "*.app"
+
+      - name: List dist directory
+        run: ls -l dist
+
       - name: Get app name
         id: get_app_name
         run: echo "app_name=$(ls dist/*.app | cut -d'/' -f2)" >> $GITHUB_OUTPUT
