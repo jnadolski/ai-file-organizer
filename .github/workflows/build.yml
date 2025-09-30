@@ -125,6 +125,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/windows/*.zip
+          asset_path: dist/windows/Gemini-Powered AI File Organizer.zip
           asset_name: Gemini-Powered-AI-File-Organizer-Windows.zip
           asset_content_type: application/zip
