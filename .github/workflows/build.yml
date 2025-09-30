@@ -1,0 +1,123 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build_macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build the application
+        run: python setup.py py2app
+
+      - name: Get app name
+        id: get_app_name
+        run: echo "app_name=$(ls dist/*.app | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Compress the application
+        run: zip -r "dist/${{ steps.get_app_name.outputs.app_name }}.zip" "dist/${{ steps.get_app_name.outputs.app_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Gemini-Powered-AI-File-Organizer-macOS
+          path: dist/*.zip
+
+  build_windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Convert icon
+        run: python convert_icon.py
+
+      - name: Build the application
+        run: pyinstaller build_windows.spec
+
+      - name: Compress the application
+        run: |
+          $appName = "Gemini-Powered AI File Organizer"
+          Compress-Archive -Path "dist/$appName" -DestinationPath "dist/$appName.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Gemini-Powered-AI-File-Organizer-Windows
+          path: dist/*.zip
+
+  create_release:
+    needs: [build_macos, build_windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: Gemini-Powered-AI-File-Organizer-macOS
+          path: dist/macos
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: Gemini-Powered-AI-File-Organizer-Windows
+          path: dist/windows
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            This is an automated release.
+          draft: false
+          prerelease: false
+
+      - name: Upload macOS Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/macos/*.zip
+          asset_name: Gemini-Powered-AI-File-Organizer-macOS.zip
+          asset_content_type: application/zip
+
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/windows/*.zip
+          asset_name: Gemini-Powered-AI-File-Organizer-Windows.zip
+          asset_content_type: application/zip
