@@ -24,6 +24,8 @@ GCP_PROJECT_ID = "ai-file-organizer-473619"
 GCP_LOCATION = "us-central1"
 MAX_CONTENT_SIZE = 1 * 1024 * 1024
 
+DEBUG_SKIP_API = False # New debug flag
+
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 def get_file_content(file_path: Path) -> str:
@@ -50,13 +52,33 @@ def sanitize_foldername(path_str: str) -> str:
         sanitized_parts.append(part if part else "Misc")
     return '/'.join(sanitized_parts)
 
-def get_ai_categories_batch(item_list: list[dict], logger=None) -> list[dict]:
+def get_ai_categories_batch(item_list: list[dict], logger=None, debug_skip_api=False) -> list[dict]:
     """
     Sends a batch of item information to the Gemini API and requests a structured JSON list 
     of categories for all items.
     """
     log = logger.info if logger else print
     log_error = logger.error if logger else lambda msg: print(msg, file=sys.stderr)
+
+    if debug_skip_api:
+        log("Skipping API call (Debug Mode).")
+        dummy_results = []
+        for item in item_list:
+            category = "Misc"
+            if "image" in item["name"].lower():
+                category = "Images"
+            elif "document" in item["name"].lower():
+                category = "Documents"
+            elif "sims" in item["name"].lower() or "mod" in item["name"].lower():
+                category = "Sims/Mods"
+            elif "archive" in item["name"].lower():
+                category = "Archives"
+            elif "audio" in item["name"].lower():
+                category = "Audio"
+            elif "video" in item["name"].lower():
+                category = "Video"
+            dummy_results.append({"id": item["id"], "name": item["name"], "category": category})
+        return dummy_results
 
     try:
         vertexai.init(project=GCP_PROJECT_ID, location=GCP_LOCATION)
@@ -118,7 +140,7 @@ def get_ai_categories_batch(item_list: list[dict], logger=None) -> list[dict]:
         log_error(f"FATAL Error during batch AI categorization: {e}")
         return []
 
-def get_items_to_organize(source_dir: str, logger=None) -> tuple[list[dict], list[dict], dict[int, Path]]:
+def get_items_to_organize(source_dir: str, logger=None, debug_skip_api=False) -> tuple[list[dict], list[dict], dict[int, Path]]:
     """Scans the source directory and returns separate lists of files and folders to be processed."""
     log = logger.info if logger else print
     
@@ -154,7 +176,7 @@ def get_items_to_organize(source_dir: str, logger=None) -> tuple[list[dict], lis
     log(f"Found {len(files_to_categorize)} files and {len(folders_to_categorize)} folders to process.")
     return files_to_categorize, folders_to_categorize, item_path_map
 
-def get_item_categories(items_to_categorize: list[dict], logger=None, progress_callback=None, batch_size=64) -> list[dict]:
+def get_item_categories(items_to_categorize: list[dict], logger=None, progress_callback=None, batch_size=64, debug_skip_api=False) -> list[dict]:
     """Takes a list of items and gets the categories from the AI."""
     log = logger.info if logger else print
     log_error = logger.error if logger else lambda msg: print(msg, file=sys.stderr)
@@ -170,7 +192,7 @@ def get_item_categories(items_to_categorize: list[dict], logger=None, progress_c
     for i in range(0, len(items_to_categorize), batch_size):
         batch = items_to_categorize[i:i + batch_size]
         log(f"Processing batch {i//batch_size + 1}/{(len(items_to_categorize) + batch_size - 1)//batch_size}...")
-        results = get_ai_categories_batch(batch, logger)
+        results = get_ai_categories_batch(batch, logger, debug_skip_api=debug_skip_api)
         if results:
             all_results.extend(results)
         if progress_callback:
@@ -225,10 +247,14 @@ def move_item(source_dir: str, categorized_item: dict, item_path_map: dict[int, 
 
 def main():
     """Main function to orchestrate the file organization."""
+    global DEBUG_SKIP_API
     parser = argparse.ArgumentParser(description="AI-Powered File Organizer")
     parser.add_argument("source_dir", type=str, help="The directory to organize.")
     parser.add_argument("--batch_size", type=int, default=64, help="The batch size for AI categorization.")
+    parser.add_argument("--debug_skip_api", action="store_true", help="Skip actual API calls and return dummy data for testing.")
     args = parser.parse_args()
+
+    DEBUG_SKIP_API = args.debug_skip_api
 
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger = logging.getLogger()
@@ -237,13 +263,13 @@ def main():
         files_to_categorize, folders_to_categorize, item_path_map = get_items_to_organize(args.source_dir, logger)
         
         if files_to_categorize:
-            categorized_files = get_item_categories(files_to_categorize, logger, batch_size=args.batch_size)
+            categorized_files = get_item_categories(files_to_categorize, logger, batch_size=args.batch_size, debug_skip_api=DEBUG_SKIP_API)
             if categorized_files:
                 for categorized_file in categorized_files:
                     move_item(args.source_dir, categorized_file, item_path_map, logger)
 
         if folders_to_categorize:
-            categorized_folders = get_item_categories(folders_to_categorize, logger, batch_size=args.batch_size)
+            categorized_folders = get_item_categories(folders_to_categorize, logger, batch_size=args.batch_size, debug_skip_api=DEBUG_SKIP_API)
             if categorized_folders:
                 for categorized_folder in categorized_folders:
                     move_item(args.source_dir, categorized_folder, item_path_map, logger)

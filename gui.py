@@ -1,5 +1,6 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QProgressBar, QLabel, QTextEdit, QFileDialog
+import os
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QProgressBar, QLabel, QFileDialog
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 
 from organizer import get_items_to_organize, get_item_categories, move_item
@@ -17,14 +18,15 @@ class Worker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(int)
     status = pyqtSignal(str)
-    log_message = pyqtSignal(str)
     error = pyqtSignal(str)
+    set_progress_determinate = pyqtSignal(bool) # New signal
 
-    def __init__(self, directory):
+    def __init__(self, directory, debug_skip_api=False):
         super().__init__()
         self.directory = directory
+        self.debug_skip_api = debug_skip_api # Store debug_skip_api
         self.logger = QtLogger()
-        self.logger.message.connect(self.log_message)
+        self.logger.message.connect(self.status) # Connect logger messages to status
         self.is_cancelled = False
 
     def cancel(self):
@@ -33,7 +35,7 @@ class Worker(QObject):
     def run(self):
         try:
             self.status.emit("Scanning directory...")
-            files_to_categorize, folders_to_categorize, item_path_map = get_items_to_organize(self.directory, self.logger)
+            files_to_categorize, folders_to_categorize, item_path_map = get_items_to_organize(self.directory, self.logger, debug_skip_api=self.debug_skip_api)
             
             if self.is_cancelled:
                 self.status.emit("Cancelled.")
@@ -59,7 +61,7 @@ class Worker(QObject):
                     current_progress = int((processed_items_count + (processed / total)) / total_items_to_process * 100)
                     self.progress.emit(current_progress)
 
-                categorized_files = get_item_categories(files_to_categorize, self.logger, file_categorization_progress, batch_size=64)
+                categorized_files = get_item_categories(files_to_categorize, self.logger, file_categorization_progress, batch_size=64, debug_skip_api=self.debug_skip_api)
 
                 if self.is_cancelled:
                     self.status.emit("Cancelled.")
@@ -67,6 +69,7 @@ class Worker(QObject):
                     return
 
                 if categorized_files:
+                    self.set_progress_determinate.emit(True)
                     self.status.emit("Moving files...")
                     for i, categorized_file in enumerate(categorized_files):
                         if self.is_cancelled:
@@ -90,7 +93,7 @@ class Worker(QObject):
                     current_progress = int((processed_items_count + (processed / total)) / total_items_to_process * 100)
                     self.progress.emit(current_progress)
 
-                categorized_folders = get_item_categories(folders_to_categorize, self.logger, folder_categorization_progress, batch_size=64)
+                categorized_folders = get_item_categories(folders_to_categorize, self.logger, folder_categorization_progress, batch_size=64, debug_skip_api=self.debug_skip_api)
 
                 if self.is_cancelled:
                     self.status.emit("Cancelled.")
@@ -98,6 +101,7 @@ class Worker(QObject):
                     return
 
                 if categorized_folders:
+                    self.set_progress_determinate.emit(True)
                     self.status.emit("Moving folders...")
                     for i, categorized_folder in enumerate(categorized_folders):
                         if self.is_cancelled:
@@ -118,10 +122,11 @@ class Worker(QObject):
             self.finished.emit()
 
 class OrganizerWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, debug_skip_api=False):
         super().__init__()
         self.setWindowTitle("AI File Organizer")
-        self.setGeometry(100, 100, 600, 400)
+        self.setFixedSize(600, 150) # Set fixed size
+        self.debug_skip_api = debug_skip_api
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -142,17 +147,10 @@ class OrganizerWindow(QMainWindow):
 
         main_layout.addLayout(dir_layout)
 
-        # Buttons
-        button_layout = QHBoxLayout()
-        self.start_button = QPushButton("Start Organizing")
-        self.start_button.clicked.connect(self.start_organization)
-        button_layout.addWidget(self.start_button)
-
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.cancel_organization)
-        self.cancel_button.setEnabled(False)
-        button_layout.addWidget(self.cancel_button)
-        main_layout.addLayout(button_layout)
+        # Action button (Start/Cancel)
+        self.action_button = QPushButton("Start Organizing")
+        self.action_button.clicked.connect(self.start_organization) # Initially connected to start
+        main_layout.addWidget(self.action_button)
 
         # Progress bar
         self.progress_bar = QProgressBar()
@@ -162,30 +160,32 @@ class OrganizerWindow(QMainWindow):
         self.status_label = QLabel("Ready")
         main_layout.addWidget(self.status_label)
 
-        # Log console
-        self.log_console = QTextEdit()
-        self.log_console.setReadOnly(True)
-        main_layout.addWidget(self.log_console)
+        self.current_directory = "" # Initialize current_directory
 
     def browse_directory(self):
-        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory", os.path.expanduser("~"))
         if directory:
             self.dir_label.setText(directory)
+            self.current_directory = directory # Store the selected directory
 
     def start_organization(self):
+        self.is_cancelled = False
         directory = self.dir_label.text()
         if not directory:
             self.status_label.setText("Please select a directory first.")
             return
         
-        self.start_button.setEnabled(False)
-        self.cancel_button.setEnabled(True)
+        self.current_directory = directory # Ensure current_directory is set
+        self.action_button.setText("Cancel")
+        self.action_button.clicked.disconnect() # Disconnect from start_organization
+        self.action_button.clicked.connect(self.cancel_organization) # Connect to cancel_organization
+        self.action_button.setEnabled(True) # Ensure it's enabled to be clicked for cancel
         self.progress_bar.setValue(0)
-        self.log_console.clear()
+        self.progress_bar.setRange(0, 0) # Indeterminate mode
         self.status_label.setText(f"Starting organization for: {directory}")
 
         self.thread = QThread()
-        self.worker = Worker(directory)
+        self.worker = Worker(self.current_directory, self.debug_skip_api) # Pass debug_skip_api
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
@@ -194,16 +194,17 @@ class OrganizerWindow(QMainWindow):
         self.thread.finished.connect(self.thread.deleteLater)
         self.worker.progress.connect(self.update_progress)
         self.worker.status.connect(self.update_status)
-        self.worker.log_message.connect(self.update_log)
         self.worker.error.connect(self.report_error)
-        self.thread.finished.connect(lambda: self.start_button.setEnabled(True))
-        self.thread.finished.connect(lambda: self.cancel_button.setEnabled(False))
+        self.worker.set_progress_determinate.connect(self.set_progress_determinate) # Connect new signal
+        self.thread.finished.connect(self.on_organization_finished) # Connect to a new slot for cleanup
 
         self.thread.start()
 
     def cancel_organization(self):
+        self.is_cancelled = True
         if self.worker:
             self.worker.cancel()
+            self.status_label.setText("Cancelling organization...")
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
@@ -211,15 +212,82 @@ class OrganizerWindow(QMainWindow):
     def update_status(self, message):
         self.status_label.setText(message)
 
-    def update_log(self, message):
-        self.log_console.append(message)
-
     def report_error(self, error):
-        self.log_console.append(f"Error: {error}")
-        self.status_label.setText("Error occurred.")
+        self.status_label.setText(f"Error: {error}")
+
+    def set_progress_determinate(self, determinate):
+        self.progress_bar.setRange(0, 100 if determinate else 0)
+
+    def on_organization_finished(self):
+        self.action_button.setText("Start Organizing")
+        self.action_button.clicked.disconnect()
+        self.action_button.clicked.connect(self.start_organization)
+        self.action_button.setEnabled(True)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+
+        if not self.is_cancelled:
+            dialog = CompletionDialog(self, self.current_directory)
+            dialog.exec()
+
+            if dialog.result == "open_folder":
+                pass
+            elif dialog.result == "organize_another":
+                self.dir_label.clear()
+                self.status_label.setText("Ready")
+            elif dialog.result == "exit":
+                QApplication.instance().quit()
+        else:
+            self.status_label.setText("Organization Cancelled. Try Again?")
+
+from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+
+class CompletionDialog(QDialog):
+    def __init__(self, parent=None, organized_directory=""):
+        super().__init__(parent)
+        self.setWindowTitle("Organization Complete")
+        self.organized_directory = organized_directory
+        self.result = None # To store which button was clicked
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("File organization is complete!"))
+
+        button_layout = QHBoxLayout()
+
+        open_folder_button = QPushButton("Open Folder")
+        open_folder_button.clicked.connect(self.open_organized_folder)
+        button_layout.addWidget(open_folder_button)
+
+        organize_another_button = QPushButton("Organize Another")
+        organize_another_button.clicked.connect(self.organize_another)
+        button_layout.addWidget(organize_another_button)
+
+        exit_button = QPushButton("Exit")
+        exit_button.clicked.connect(self.exit_application)
+        button_layout.addWidget(exit_button)
+
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+
+    def open_organized_folder(self):
+        if self.organized_directory:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self.organized_directory))
+        self.result = "open_folder"
+        self.accept() # Close the dialog
+
+    def organize_another(self):
+        self.result = "organize_another"
+        self.accept() # Close the dialog
+
+    def exit_application(self):
+        self.result = "exit"
+        self.accept() # Close the dialog
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = OrganizerWindow()
+    debug_skip_api = "--debug_skip_api" in sys.argv
+    window = OrganizerWindow(debug_skip_api=debug_skip_api)
     window.show()
     sys.exit(app.exec())
