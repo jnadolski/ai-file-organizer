@@ -84,6 +84,9 @@ jobs:
           name: Gemini-Powered-AI-File-Organizer-macOS
           path: dist/macos
 
+      - name: List downloaded macOS artifact
+        run: ls -l dist/macos
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
