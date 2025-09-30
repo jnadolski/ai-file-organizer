@@ -58,6 +58,9 @@ jobs:
       - name: Build the application
         run: python -m PyInstaller build_windows.spec
 
+      - name: List dist directory
+        run: ls -l dist
+
       - name: Compress the application
         run: |
           $appName = "Gemini-Powered AI File Organizer"
