@@ -18,7 +18,7 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 
 ### For macOS Users
 
-1.  Download the `Gemini-Powered AI File Organizer.app` from the [releases page](https://github.com/your-username/your-repo/releases).
+1.  Download the `Gemini-Powered AI File Organizer.app.zip` from the [latest release](https://github.com/jnadolski/ai-file-organizer/releases/tag/v1.0.0).
 2.  Drag the application to your `Applications` folder.
 3.  Double-click the application to run it.
 
