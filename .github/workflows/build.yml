@@ -55,7 +55,7 @@ jobs:
         run: python convert_icon.py
 
       - name: Build the application
-        run: pyinstaller build_windows.spec
+        run: python -m PyInstaller build_windows.spec
 
       - name: Compress the application
         run: |
