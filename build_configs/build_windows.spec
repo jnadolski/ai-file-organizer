@@ -2,7 +2,7 @@
 
 block_cipher = None
 
-a = Analysis(['src/gui.py'],
+a = Analysis(['../src/gui.py'],
              binaries=[],
              datas=[],
              hiddenimports=[],
