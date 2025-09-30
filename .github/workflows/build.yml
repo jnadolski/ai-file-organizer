@@ -43,7 +43,8 @@ jobs:
         run: echo "app_name=$(ls dist/*.app | cut -d'/' -f2)" >> $GITHUB_OUTPUT
 
       - name: Compress the application
-        run: zip -r "dist/${{ steps.get_app_name.outputs.app_name }}.zip" "dist/${{ steps.get_app_name.outputs.app_name }}"
+        working-directory: dist
+        run: zip -r "Gemini-Powered AI File Organizer.app.zip" "Gemini-Powered AI File Organizer.app"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
