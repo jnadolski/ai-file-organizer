@@ -25,18 +25,8 @@ jobs:
       - name: Build the application
         run: python setup.py py2app
 
-      - name: Find .app bundle
-        run: find . -name "*.app"
-
-      - name: List dist directory
-        run: ls -l dist
-
-      - name: Get app name
-        id: get_app_name
-        run: echo "app_name=$(ls dist/*.app | cut -d'/' -f2)" >> $GITHUB_OUTPUT
-
       - name: Compress the application
-        run: zip -r "dist/${{ steps.get_app_name.outputs.app_name }}.zip" "dist/${{ steps.get_app_name.outputs.app_name }}"
+        run: zip -r "dist/Gemini-Powered AI File Organizer.app.zip" "dist/Gemini-Powered AI File Organizer.app"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
