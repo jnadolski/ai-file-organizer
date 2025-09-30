@@ -14,15 +14,15 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 
 ### Application UI
 
-<img src="assets/AppUI.png" width="500">
+<img src="../assets/AppUI.png" width="500">
 
 ### Before (Original UI)
 
-<img src="assets/example_before.png" width="500">
+<img src="../assets/example_before.png" width="500">
 
 ### After (Organized Files)
 
-<img src="assets/example_after.png" width="500">
+<img src="../assets/example_after.png" width="500">
 
 ## Installation and Usage
 
