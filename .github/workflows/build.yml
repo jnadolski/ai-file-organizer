@@ -93,6 +93,9 @@ jobs:
           name: Gemini-Powered-AI-File-Organizer-Windows
           path: dist/windows
 
+      - name: List downloaded Windows artifact
+        run: ls -l dist/windows
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
