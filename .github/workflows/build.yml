@@ -64,7 +64,7 @@ jobs:
       - name: Compress the application
         run: |
           $appName = "Gemini-Powered AI File Organizer"
-          Compress-Archive -Path "dist/$appName" -DestinationPath "dist/$appName.zip"
+          Compress-Archive -Path "dist/$appName.exe" -DestinationPath "dist/$appName.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
