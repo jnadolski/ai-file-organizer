@@ -3,7 +3,6 @@
 block_cipher = None
 
 a = Analysis(['src/gui.py'],
-             pathex=['/Users/jennifernadolski/ai-file-organizer/src'],
              binaries=[],
              datas=[],
              hiddenimports=[],
