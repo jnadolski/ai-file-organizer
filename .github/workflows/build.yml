@@ -32,10 +32,7 @@ jobs:
       - name: Compress the application
         run: zip -r "dist/${{ steps.get_app_name.outputs.app_name }}.zip" "dist/${{ steps.get_app_name.outputs.app_name }}"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: Gemini-Powered-AI-File-Organizer-macOS
+uses: actions/upload-artifact@v4
           path: dist/*.zip
 
   build_windows:
@@ -77,9 +74,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v3
-        with:
+      uses: actions/download-artifact@v4        with:
           name: Gemini-Powered-AI-File-Organizer-macOS
           path: dist/macos
 
