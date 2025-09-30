@@ -10,14 +10,10 @@ An intelligent file organizer that uses the Gemini API to categorize your files 
 *   **Debug Mode:** A debug mode to test the application without making actual API calls.
 *   **Packaged Application:** Comes as a standalone `.app` bundle for easy installation and use on macOS.
 
-## Screenshots
+## Screenshot
 
-### Before (Custom Styling)
-
-<img src="Screenshot%202025-09-30%20at%207.55.06%20AM.png" width="500">
-
-### After (Native macOS Look)
-
+<img src="AI%20File%20Organizer%20(iOS%20Icon).png" width="128">
+<br>
 <img src="AppUI.png" width="500">
 
 ## Installation and Usage
